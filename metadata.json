@@ -1,0 +1,6 @@
+{
+  "name": "Khadim Alharamain / Umrah & Haji Plus",
+  "description": "Sistem Informasi Keuangan Travel - PT. Khadim Alharamain. Sistem ERP Akuntansi & Manajemen Operasional Travel Umrah & Haji Plus dengan Akuntansi Berpasangan, Presisi Piutang Jamaah, COA Spesifik, & Laporan Laba Rugi per Kloter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
