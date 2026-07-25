@@ -1,4 +1,4 @@
-import { ChartOfAccount, TravelPackage, DepartureKloter, Jamaah, JamaahRegistration, PaymentSchedule, JamaahPaymentTransaction, JournalEntry, Vendor, VendorBill, VendorPayment } from '../types';
+import { ChartOfAccount, TravelPackage, DepartureKloter, Jamaah, JamaahRegistration, PaymentSchedule, JamaahPaymentTransaction, JournalEntry, Vendor, VendorBill, VendorPayment, Mitra, MitraCommission } from '../types';
 
 export const INITIAL_COA: ChartOfAccount[] = [
   { id: 'coa-1101', code: '1101', name: 'Kas Kecil Operational', category: 'ASSET', currency: 'IDR', balance: 15000000, isSystem: true, description: 'Kas fisik kantor IDR' },
@@ -31,7 +31,8 @@ export const INITIAL_COA: ChartOfAccount[] = [
   // Expenses
   { id: 'coa-6101', code: '6101', name: 'Beban Operasional Kantor', category: 'EXPENSE', currency: 'IDR', balance: 12000000, isSystem: false, description: 'Listrik, sewa kantor, internet' },
   { id: 'coa-6102', code: '6102', name: 'Beban Gaji & Bonus Tour Leader/Muthawwif', category: 'EXPENSE', currency: 'IDR', balance: 24000000, isSystem: false, description: 'Honorarium tim lapangan & staf' },
-  { id: 'coa-6103', code: '6103', name: 'Beban Marketing & Syiar', category: 'EXPENSE', currency: 'IDR', balance: 8500000, isSystem: false, description: 'Iklan Meta, brosur, event pameran' }
+  { id: 'coa-6103', code: '6103', name: 'Beban Marketing & Syiar', category: 'EXPENSE', currency: 'IDR', balance: 8500000, isSystem: false, description: 'Iklan Meta, brosur, event pameran' },
+  { id: 'coa-6104', code: '6104', name: 'Beban Komisi Mitra & Agen', category: 'EXPENSE', currency: 'IDR', balance: 1250000, isSystem: true, description: 'Komisi referral agen / mitra travel' }
 ];
 
 export const INITIAL_PACKAGES: TravelPackage[] = [
@@ -454,9 +455,9 @@ export const INITIAL_JOURNALS: JournalEntry[] = [
 ];
 
 export const INITIAL_VENDORS: Vendor[] = [
-  { id: 'vnd-01', name: 'Saudi Arabian Airlines (Saudia)', code: 'VND-SV', type: 'AIRLINE', phone: '+62215200000', email: 'group@saudia.com', address: 'Menara BTPN Lt. 12 Jakarta' },
-  { id: 'vnd-02', name: 'Al-Anjum Hotel Group Makkah', code: 'VND-ANJUM', type: 'HOTEL', phone: '+96612500000', email: 'reservation@anjumhotels.com', address: 'Ibrahim Al Khalil Rd, Makkah Saudi Arabia' },
-  { id: 'vnd-03', name: 'Al-Mawaddah Provider LA Saudi', code: 'VND-LA-MAW', type: 'LA_PROVIDER', phone: '+96650000000', email: 'la@almawaddah.sa', address: 'Madinah Munawwarah' }
+  { id: 'vnd-01', name: 'Saudi Arabian Airlines (Saudia)', code: 'VND-SV', type: 'AIRLINE', phone: '+62215200000', email: 'group@saudia.com', address: 'Menara BTPN Lt. 12 Jakarta', isActive: true },
+  { id: 'vnd-02', name: 'Al-Anjum Hotel Group Makkah', code: 'VND-ANJUM', type: 'HOTEL', phone: '+96612500000', email: 'reservation@anjumhotels.com', address: 'Ibrahim Al Khalil Rd, Makkah Saudi Arabia', isActive: true },
+  { id: 'vnd-03', name: 'Al-Mawaddah Provider LA Saudi', code: 'VND-LA-MAW', type: 'LA_PROVIDER', phone: '+96650000000', email: 'la@almawaddah.sa', address: 'Madinah Munawwarah', isActive: true }
 ];
 
 export const INITIAL_VENDOR_BILLS: VendorBill[] = [
@@ -473,5 +474,76 @@ export const INITIAL_VENDOR_BILLS: VendorBill[] = [
     status: 'PARTIAL',
     description: 'Deposit Tiket SV 10 Seat Kloter Syawal Alpha',
     journalEntryId: 'jv-vb-01'
+  }
+];
+
+export const INITIAL_VENDOR_PAYMENTS: VendorPayment[] = [
+  {
+    id: 'vpay-01',
+    paymentNumber: 'VPAY-202607-001',
+    billId: 'vbill-01',
+    paymentDate: '2026-07-06',
+    amount: 50000000,
+    bankAccountId: 'coa-1102',
+    referenceNo: 'TRX-BSI-991200',
+    notes: 'DP 40% Deposit Tiket SV Kloter Syawal Alpha',
+    journalEntryId: 'jv-vp-01'
+  }
+];
+
+export const INITIAL_MITRA: Mitra[] = [
+  {
+    id: 'mtr-01',
+    code: 'MTR-001',
+    name: 'H. Ahmad Subarkah (KBIH Al-Falah)',
+    phone: '081298765432',
+    email: 'subarkah.kbih@gmail.com',
+    bankInfo: 'BSI 7123456789 a.n Ahmad Subarkah',
+    defaultFeePerPax: 1000000,
+    isActive: true,
+    notes: 'Mitra Wilayah Jakarta Selatan'
+  },
+  {
+    id: 'mtr-02',
+    code: 'MTR-002',
+    name: 'Hj. Siti Aminah (Majlis Ta\'lim An-Nur)',
+    phone: '081311223344',
+    email: 'sitiaminah@yahoo.com',
+    bankInfo: 'Bank Mandiri 127000987654 a.n Siti Aminah',
+    defaultFeePerPax: 1250000,
+    isActive: true,
+    notes: 'Mitra Wilayah Depok & Bogor'
+  }
+];
+
+export const INITIAL_COMMISSIONS: MitraCommission[] = [
+  {
+    id: 'com-01',
+    commissionNumber: 'COM-202607-001',
+    mitraId: 'mtr-01',
+    registrationId: 'reg-01',
+    jamaahName: 'Budi Santoso',
+    packageName: 'Umroh Reguler 9 Hari',
+    kloterName: 'Umrah Syawal 1447H Group A',
+    feeAmount: 1000000,
+    status: 'PENDING',
+    createdDate: '2026-07-01'
+  },
+  {
+    id: 'com-02',
+    commissionNumber: 'COM-202607-002',
+    mitraId: 'mtr-02',
+    registrationId: 'reg-02',
+    jamaahName: 'Siti Rahmah',
+    packageName: 'Umroh Plus Dubai 12 Hari',
+    kloterName: 'Umrah Plus Dubai Group B',
+    feeAmount: 1250000,
+    status: 'PAID',
+    createdDate: '2026-07-05',
+    paidDate: '2026-07-10',
+    bankAccountId: 'coa-1102',
+    referenceNo: 'TRF-MITRA-002',
+    journalEntryId: 'jv-com-02',
+    notes: 'Pencairan komisi via BSI IDR'
   }
 ];

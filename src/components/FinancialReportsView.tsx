@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { KloterProfitabilityReport, ChartOfAccount, TravelPackage, DepartureKloter, PackageCategory, PACKAGE_CATEGORY_LABELS, UserRole } from '../types';
+import { KloterProfitabilityReport, ChartOfAccount, TravelPackage, DepartureKloter, PACKAGE_CATEGORY_LABELS, UserRole, JournalEntry } from '../types';
 import { getRolePermissions } from '../utils/rbac';
 import { formatIDR } from '../utils/formatters';
+import { ProfitLossView } from './ProfitLossView';
+import { BalanceSheetView } from './BalanceSheetView';
 import {
   BarChart3,
   TrendingUp,
@@ -12,19 +14,28 @@ import {
   AlertCircle,
   Building2,
   Users,
-  Filter
+  Filter,
+  Scale,
+  Receipt
 } from 'lucide-react';
 
 interface FinancialReportsViewProps {
   coaList: ChartOfAccount[];
   packageList?: TravelPackage[];
   kloters?: DepartureKloter[];
+  journals?: JournalEntry[];
   userRole?: UserRole;
 }
 
-export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({ coaList, packageList = [], kloters = [], userRole = 'ACCOUNTANT' }) => {
+export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({
+  coaList,
+  packageList = [],
+  kloters = [],
+  journals = [],
+  userRole = 'ACCOUNTANT'
+}) => {
   const perm = getRolePermissions(userRole);
-  const [activeSubTab, setActiveSubTab] = useState<'PROFITABILITY' | 'RECEIVABLES' | 'BALANCE_SHEET'>('PROFITABILITY');
+  const [activeSubTab, setActiveSubTab] = useState<'INCOME_STATEMENT' | 'BALANCE_SHEET' | 'KLOTER_PROFIT'>('INCOME_STATEMENT');
   const [profitReports, setProfitReports] = useState<KloterProfitabilityReport[]>([]);
   const [receivablesReport, setReceivablesReport] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -41,35 +52,30 @@ export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({ coaL
         fetch('/api/reports/profitability'),
         fetch('/api/reports/receivables')
       ]);
-      const profData = await profRes.json();
-      const recData = await recRes.json();
 
-      setProfitReports(profData || []);
-      setReceivablesReport(recData || []);
+      let profData = [];
+      let recData = [];
+
+      if (profRes.ok) {
+        profData = await profRes.json();
+      } else {
+        console.error('Failed to load profitability report:', profRes.statusText);
+      }
+
+      if (recRes.ok) {
+        recData = await recRes.json();
+      } else {
+        console.error('Failed to load receivables report:', recRes.statusText);
+      }
+
+      setProfitReports(Array.isArray(profData) ? profData : []);
+      setReceivablesReport(Array.isArray(recData) ? recData : []);
     } catch (err) {
       console.error('Error fetching reports:', err);
     } finally {
       setIsLoading(false);
     }
   };
-
-  // Balance Sheet Calculations
-  const assetCoa = coaList.filter(a => a.category === 'ASSET');
-  const liabilityCoa = coaList.filter(a => a.category === 'LIABILITY');
-  const equityCoa = coaList.filter(a => a.category === 'EQUITY');
-  const revenueCoa = coaList.filter(a => a.category === 'REVENUE');
-  const cogsCoa = coaList.filter(a => a.category === 'COGS');
-  const expenseCoa = coaList.filter(a => a.category === 'EXPENSE');
-
-  const totalAssets = assetCoa.reduce((s, a) => s + a.balance, 0);
-  const totalLiabilities = liabilityCoa.reduce((s, a) => s + a.balance, 0);
-  
-  const totalRev = revenueCoa.reduce((s, a) => s + a.balance, 0);
-  const totalCogs = cogsCoa.reduce((s, a) => s + a.balance, 0);
-  const totalExp = expenseCoa.reduce((s, a) => s + a.balance, 0);
-  const netIncome = totalRev - totalCogs - totalExp;
-
-  const totalEquity = equityCoa.reduce((s, a) => s + a.balance, 0) + netIncome;
 
   // Filter profit reports by selected package category
   const filteredProfitReports = profitReports.filter((rep) => {
@@ -90,70 +96,91 @@ export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({ coaL
     <div className="space-y-6">
       
       {/* Header Bar */}
-      <div className="bg-white dark:bg-slate-900 p-5 rounded-sm border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 print:hidden">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-            <BarChart3 className="w-5 h-5 text-blue-600" />
-            <span>Laporan Keuangan & Analisis Profitabilitas Travel</span>
+          <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center space-x-2.5">
+            <BarChart3 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <span>Laporan Keuangan & Margin Profitabilitas Travel</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Profit & Loss per Kloter, Kartu Umur Piutang Jamaah, Neraca Keuangan (Balance Sheet)
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            PT. Khadim Alharamain — Laporan Laba Rugi, Neraca Posisi Keuangan, & Profitabilitas Kloter
           </p>
         </div>
 
-        {/* Sub Tabs */}
-        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-sm text-xs font-bold border border-slate-200 dark:border-slate-700">
+        {/* 3 Sub Tabs Navigation */}
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold gap-1">
           <button
-            onClick={() => setActiveSubTab('PROFITABILITY')}
-            className={`px-3.5 py-1.5 rounded-sm transition-all uppercase tracking-wider text-[11px] ${
-              activeSubTab === 'PROFITABILITY'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+            onClick={() => setActiveSubTab('INCOME_STATEMENT')}
+            className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
+              activeSubTab === 'INCOME_STATEMENT'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            Laba/Rugi Per Kloter
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>1. Laba Rugi (Profit & Loss)</span>
           </button>
-          <button
-            onClick={() => setActiveSubTab('RECEIVABLES')}
-            className={`px-3.5 py-1.5 rounded-sm transition-all uppercase tracking-wider text-[11px] ${
-              activeSubTab === 'RECEIVABLES'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            Umur Piutang Jamaah
-          </button>
+
           <button
             onClick={() => setActiveSubTab('BALANCE_SHEET')}
-            className={`px-3.5 py-1.5 rounded-sm transition-all uppercase tracking-wider text-[11px] ${
+            className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
               activeSubTab === 'BALANCE_SHEET'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            Neraca & Laba Rugi
+            <Scale className="w-3.5 h-3.5" />
+            <span>2. Laporan Neraca (Balance Sheet)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('KLOTER_PROFIT')}
+            className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
+              activeSubTab === 'KLOTER_PROFIT'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <PieChart className="w-3.5 h-3.5" />
+            <span>3. Margin per Kloter</span>
           </button>
         </div>
       </div>
 
-      {activeSubTab === 'PROFITABILITY' && (
+      {/* TAB 1: LABA RUGI (INCOME STATEMENT) */}
+      {activeSubTab === 'INCOME_STATEMENT' && (
+        <ProfitLossView coaList={coaList} journals={journals} />
+      )}
+
+      {/* TAB 2: LAPORAN NERACA (BALANCE SHEET) */}
+      {activeSubTab === 'BALANCE_SHEET' && (
+        <BalanceSheetView coaList={coaList} journals={journals} />
+      )}
+
+      {/* TAB 3: MARGIN & PROFITABILITAS PER KLOTER */}
+      {activeSubTab === 'KLOTER_PROFIT' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-slate-900 rounded-sm border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
             
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-                <TrendingUp className="w-4 h-4 text-blue-600" />
-                <span>Laporan Keuntungan Bersih (Profitability Margin) Per Rombongan Kloter</span>
-              </h3>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <span>Analisis Margin & Keuntungan Bersih Per Rombongan Kloter</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Pengakuan Pendapatan Kloter Selesai vs Realisasi HPP Maskapai, Hotel & LA Saudi
+                </p>
+              </div>
 
               {/* Filter Jenis Paket Dropdown */}
               <div className="flex items-center space-x-2">
-                <Filter className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0">Filter Jenis Paket:</label>
+                <Filter className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0">Filter Paket:</label>
                 <select
                   value={selectedCategoryFilter}
                   onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                  className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
+                  className="p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                 >
                   <option value="ALL">Semua Jenis Paket Resmi</option>
                   <option value="UMRAH_REGULER_9D">1. Umroh Reguler 9 Hari</option>
@@ -169,14 +196,14 @@ export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({ coaL
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 dark:border-slate-800">
-                    <th className="py-3 px-4">Kode & Nama Kloter</th>
-                    <th className="py-3 px-4">Jenis Paket</th>
-                    <th className="py-3 px-4 text-center">Jumlah Pax</th>
-                    <th className="py-3 px-4 text-right">Pendapatan Diakui</th>
-                    <th className="py-3 px-4 text-right">Dana Belum Berangkat (Unearned)</th>
-                    <th className="py-3 px-4 text-right">Total Realisasi HPP</th>
-                    <th className="py-3 px-4 text-right">Laba Kotor (Gross Profit)</th>
-                    <th className="py-3 px-4 text-center">Margin (%)</th>
+                    <th className="py-3.5 px-4">Kode & Nama Kloter</th>
+                    <th className="py-3.5 px-4">Jenis Paket</th>
+                    <th className="py-3.5 px-4 text-center">Jumlah Pax</th>
+                    <th className="py-3.5 px-4 text-right">Pendapatan Diakui</th>
+                    <th className="py-3.5 px-4 text-right">Dana Unearned (Belum Terbang)</th>
+                    <th className="py-3.5 px-4 text-right">Total Realisasi HPP</th>
+                    <th className="py-3.5 px-4 text-right">Laba Kotor (Gross Profit)</th>
+                    <th className="py-3.5 px-4 text-center">Margin (%)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
@@ -198,29 +225,29 @@ export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({ coaL
 
                       return (
                         <tr key={rep.kloterId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                          <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white">
                             {rep.kloterCode} — {rep.kloterName}
                           </td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-semibold rounded-sm text-[10px]">
+                          <td className="py-3.5 px-4">
+                            <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold rounded-md text-[10px]">
                               {pkgLabel}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-center font-bold font-mono">{rep.totalJamaah} Pax</td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          <td className="py-3.5 px-4 text-center font-bold font-mono">{rep.totalJamaah} Pax</td>
+                          <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
                             {formatIDR(rep.totalRevenueRecognized)}
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-purple-600 dark:text-purple-400">
+                          <td className="py-3.5 px-4 text-right font-mono font-semibold text-purple-600 dark:text-purple-400">
                             {formatIDR(rep.totalUnearnedRevenuePending)}
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-rose-600 dark:text-rose-400">
+                          <td className="py-3.5 px-4 text-right font-mono font-semibold text-rose-600 dark:text-rose-400">
                             {formatIDR(rep.realizedCOGS.total)}
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                          <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 dark:text-white">
                             {formatIDR(rep.grossProfit)}
                           </td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold rounded-sm text-[10px] font-mono">
+                          <td className="py-3.5 px-4 text-center">
+                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-extrabold rounded-md text-[10px] font-mono">
                               {rep.profitMarginPercent}%
                             </span>
                           </td>
@@ -232,131 +259,53 @@ export const FinancialReportsView: React.FC<FinancialReportsViewProps> = ({ coaL
               </table>
             </div>
           </div>
-        </div>
-      )}
 
-      {activeSubTab === 'RECEIVABLES' && (
-        <div className="bg-white dark:bg-slate-900 rounded-sm border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-            Laporan Kartu & Umur Piutang Tagihan Jamaah (Aging Report)
-          </h3>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 dark:border-slate-800">
-                  <th className="py-3 px-4">No. Registrasi</th>
-                  <th className="py-3 px-4">Nama Jamaah</th>
-                  <th className="py-3 px-4">Program & Kloter</th>
-                  <th className="py-3 px-4 text-right">Total Paket</th>
-                  <th className="py-3 px-4 text-right">Sudah Terbayar</th>
-                  <th className="py-3 px-4 text-right">Sisa Piutang</th>
-                  <th className="py-3 px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                {receivablesReport.map((rec) => (
-                  <tr key={rec.registrationId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
-                      {rec.registrationNumber}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{rec.jamaahName}</td>
-                    <td className="py-3 px-4">{rec.packageName} ({rec.kloterName})</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-700 dark:text-slate-200">{formatIDR(rec.totalBill)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatIDR(rec.paidAmount)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">{formatIDR(rec.balanceDue)}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded-sm border text-[10px] font-bold tracking-wider ${
-                        rec.balanceDue === 0
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300'
-                          : 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300'
-                      }`}>
-                        {rec.balanceDue === 0 ? 'LUNAS' : 'MEMILIKI PIUTANG'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {activeSubTab === 'BALANCE_SHEET' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Assets Section */}
-          <div className="bg-white dark:bg-slate-900 rounded-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider text-blue-600">
-              AKTIVA (ASSETS)
+          {/* Aging Piutang Section */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+              <Receipt className="w-4 h-4 text-amber-600" />
+              <span>Kartu & Umur Piutang Tagihan Jamaah (Aging Report)</span>
             </h3>
-            <div className="space-y-2 text-xs">
-              {assetCoa.map((a) => (
-                <div key={a.id} className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
-                  <span className="text-slate-600 dark:text-slate-300 font-medium"><span className="font-mono font-bold text-slate-800 dark:text-slate-200 mr-1.5">{a.code}</span>{a.name}</span>
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">{formatIDR(a.balance)}</span>
-                </div>
-              ))}
-            </div>
-            <div className="pt-3 border-t-2 border-slate-900 dark:border-slate-100 flex justify-between font-bold text-xs uppercase tracking-wider">
-              <span>TOTAL AKTIVA / ASSETS:</span>
-              <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{formatIDR(totalAssets)}</span>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200 dark:border-slate-800">
+                    <th className="py-3 px-4">No. Registrasi</th>
+                    <th className="py-3 px-4">Nama Jamaah</th>
+                    <th className="py-3 px-4">Program & Kloter</th>
+                    <th className="py-3 px-4 text-right">Total Tagihan</th>
+                    <th className="py-3 px-4 text-right">Sudah Terbayar</th>
+                    <th className="py-3 px-4 text-right">Sisa Piutang</th>
+                    <th className="py-3 px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+                  {receivablesReport.map((rec) => (
+                    <tr key={rec.registrationId} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
+                        {rec.registrationNumber}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{rec.jamaahName}</td>
+                      <td className="py-3 px-4">{rec.packageName} ({rec.kloterName})</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-700 dark:text-slate-200">{formatIDR(rec.totalBill)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatIDR(rec.paidAmount)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">{formatIDR(rec.balanceDue)}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold tracking-wider ${
+                          rec.balanceDue === 0
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300'
+                        }`}>
+                          {rec.balanceDue === 0 ? 'LUNAS' : 'MEMILIKI PIUTANG'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          {/* Liabilities & Equity Section */}
-          <div className="bg-white dark:bg-slate-900 rounded-sm border border-slate-200 dark:border-slate-800 p-5 space-y-6 shadow-sm">
-            
-            {/* Liabilities */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider text-purple-600">
-                PASIVA - KEWAJIBAN (LIABILITIES)
-              </h3>
-              <div className="space-y-2 text-xs">
-                {liabilityCoa.map((l) => (
-                  <div key={l.id} className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-600 dark:text-slate-300 font-medium"><span className="font-mono font-bold text-slate-800 dark:text-slate-200 mr-1.5">{l.code}</span>{l.name}</span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-white">{formatIDR(l.balance)}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="pt-2 flex justify-between font-bold text-xs text-purple-700 dark:text-purple-300 uppercase tracking-wider">
-                <span>Total Kewajiban / Liabilitas:</span>
-                <span className="font-mono text-xs">{formatIDR(totalLiabilities)}</span>
-              </div>
-            </div>
-
-            {/* Equity */}
-            <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white pb-2 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider text-blue-600">
-                EKUITAS (EQUITY)
-              </h3>
-              <div className="space-y-2 text-xs">
-                {equityCoa.map((e) => (
-                  <div key={e.id} className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-600 dark:text-slate-300 font-medium"><span className="font-mono font-bold text-slate-800 dark:text-slate-200 mr-1.5">{e.code}</span>{e.name}</span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-white">{formatIDR(e.balance)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800 text-emerald-600 font-bold">
-                  <span>Laba Bersih Periode Berjalan</span>
-                  <span className="font-mono">{formatIDR(netIncome)}</span>
-                </div>
-              </div>
-              <div className="pt-2 flex justify-between font-bold text-xs text-blue-700 dark:text-blue-300 uppercase tracking-wider">
-                <span>Total Ekuitas Modal:</span>
-                <span className="font-mono text-xs">{formatIDR(totalEquity)}</span>
-              </div>
-            </div>
-
-            {/* Total Balance Check */}
-            <div className="pt-3 border-t-2 border-slate-900 dark:border-slate-100 flex justify-between font-bold text-xs uppercase tracking-wider bg-slate-50 dark:bg-slate-800/80 p-3 rounded-sm border border-slate-200 dark:border-slate-700">
-              <span>TOTAL PASIVA (KEWAJIBAN + EKUITAS):</span>
-              <span className="font-mono text-sm text-blue-600 dark:text-blue-400">{formatIDR(totalLiabilities + totalEquity)}</span>
-            </div>
-
-          </div>
-
         </div>
       )}
 

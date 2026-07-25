@@ -107,6 +107,8 @@ export interface JamaahRegistration {
   jamaahId: string;
   packageId: string;
   kloterId: string;
+  mitraId?: string;
+  commissionAmount?: number;
   registrationDate: string;
   roomType: RoomType;
   basePrice: number;
@@ -167,7 +169,7 @@ export interface JournalEntry {
   id: string;
   journalNumber: string; // e.g. JV-202607-0001
   transactionDate: string;
-  referenceType: 'JAMAAH_PAYMENT' | 'REVENUE_RECOGNITION' | 'VENDOR_BILL' | 'VENDOR_PAYMENT' | 'MANUAL_JOURNAL';
+  referenceType: 'JAMAAH_PAYMENT' | 'REVENUE_RECOGNITION' | 'VENDOR_BILL' | 'VENDOR_PAYMENT' | 'MITRA_COMMISSION' | 'MANUAL_JOURNAL';
   referenceId?: string;
   description: string;
   totalDebit: number;
@@ -177,7 +179,18 @@ export interface JournalEntry {
   createdAt: string;
 }
 
-export type VendorType = 'AIRLINE' | 'HOTEL' | 'VISA_PROVIDER' | 'LA_PROVIDER' | 'EQUIPMENT' | 'OTHER';
+export type VendorType = 'AIRLINE' | 'HOTEL' | 'VISA_PROVIDER' | 'LA_PROVIDER' | 'TRANSPORT' | 'CATERING' | 'EQUIPMENT' | 'OTHER';
+
+export const VENDOR_TYPE_LABELS: Record<VendorType, string> = {
+  AIRLINE: 'Airlines',
+  HOTEL: 'Hotel',
+  VISA_PROVIDER: 'Provider Visa',
+  LA_PROVIDER: 'Provider LA',
+  TRANSPORT: 'Transportasi',
+  CATERING: 'Catering',
+  EQUIPMENT: 'Perlengkapan',
+  OTHER: 'Lainnya',
+};
 
 export interface Vendor {
   id: string;
@@ -188,6 +201,7 @@ export interface Vendor {
   email: string;
   address: string;
   bankInfo?: string;
+  isActive: boolean;
 }
 
 export type VendorBillStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
@@ -242,4 +256,36 @@ export interface KloterProfitabilityReport {
   grossProfit: number;
   profitMarginPercent: number;
   status: KloterStatus;
+}
+
+export interface Mitra {
+  id: string;
+  code: string; // e.g. MTR-001
+  name: string;
+  phone: string;
+  email?: string;
+  bankInfo: string;
+  defaultFeePerPax: number;
+  isActive: boolean;
+  notes?: string;
+}
+
+export type CommissionStatus = 'PENDING' | 'APPROVED' | 'PAID';
+
+export interface MitraCommission {
+  id: string;
+  commissionNumber: string; // e.g. COM-202607-001
+  mitraId: string;
+  registrationId: string;
+  jamaahName: string;
+  packageName: string;
+  kloterName: string;
+  feeAmount: number;
+  status: CommissionStatus;
+  createdDate: string;
+  paidDate?: string;
+  bankAccountId?: string;
+  referenceNo?: string;
+  journalEntryId?: string;
+  notes?: string;
 }

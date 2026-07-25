@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { JamaahRegistration, Jamaah, TravelPackage, DepartureKloter, ChartOfAccount, PaymentSchedule, JamaahPaymentTransaction, UserRole } from '../types';
+import { JamaahRegistration, Jamaah, TravelPackage, DepartureKloter, ChartOfAccount, PaymentSchedule, JamaahPaymentTransaction, UserRole, PACKAGE_CATEGORY_LABELS, Mitra } from '../types';
 import { getRolePermissions } from '../utils/rbac';
 import { formatIDR, formatDateIndo } from '../utils/formatters';
 import {
@@ -19,9 +19,12 @@ import {
   CreditCard,
   Building,
   UserCheck,
-  Lock
+  Lock,
+  ArrowRightLeft,
+  History
 } from 'lucide-react';
 import { ReceiptModal } from './ReceiptModal';
+import { MutasiJamaahModal } from './MutasiJamaahModal';
 
 interface JamaahBillingViewProps {
   registrations: JamaahRegistration[];
@@ -29,6 +32,7 @@ interface JamaahBillingViewProps {
   packageList: TravelPackage[];
   kloterList: DepartureKloter[];
   coaList: ChartOfAccount[];
+  mitraList?: Mitra[];
   userRole?: UserRole;
   onRefreshData: () => void;
   isNewPaymentOpen: boolean;
@@ -43,6 +47,7 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
   packageList,
   kloterList,
   coaList,
+  mitraList = [],
   userRole = 'ACCOUNTANT',
   onRefreshData,
   isNewPaymentOpen,
@@ -54,6 +59,9 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedReg, setSelectedReg] = useState<JamaahRegistration | null>(null);
+
+  // Mutation Modal state
+  const [isMutationOpen, setIsMutationOpen] = useState<boolean>(false);
 
   // Active Printable Receipt State
   const [printedPayment, setPrintedPayment] = useState<JamaahPaymentTransaction | null>(null);
@@ -78,12 +86,37 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
   const [newGender, setNewGender] = useState<'L' | 'P'>('L');
   const [selectedPackageId, setSelectedPackageId] = useState<string>('');
   const [selectedKloterId, setSelectedKloterId] = useState<string>('');
+  const [selectedMitraId, setSelectedMitraId] = useState<string>('');
   const [roomType, setRoomType] = useState<'QUAD' | 'TRIPLE' | 'DOUBLE'>('QUAD');
   const [discountAmount, setDiscountAmount] = useState<string>('0');
   const [addOnAmount, setAddOnAmount] = useState<string>('0');
   const [regNotes, setRegNotes] = useState<string>('');
   const [isSubmittingReg, setIsSubmittingReg] = useState(false);
   const [regError, setRegError] = useState<string>('');
+
+  // Filter Active Packages for Registration
+  const activePackageList = packageList.filter(p => p.isActive);
+  const selectedPackageObj = packageList.find(p => p.id === selectedPackageId);
+
+  // Dynamic price calculations for registration
+  let selectedBasePrice = 0;
+  let roomUpgradeFee = 0;
+  if (selectedPackageObj) {
+    if (roomType === 'QUAD') {
+      selectedBasePrice = selectedPackageObj.priceQuad;
+      roomUpgradeFee = 0;
+    } else if (roomType === 'TRIPLE') {
+      selectedBasePrice = selectedPackageObj.priceTriple;
+      roomUpgradeFee = Math.max(0, selectedPackageObj.priceTriple - selectedPackageObj.priceQuad);
+    } else if (roomType === 'DOUBLE') {
+      selectedBasePrice = selectedPackageObj.priceDouble;
+      roomUpgradeFee = Math.max(0, selectedPackageObj.priceDouble - selectedPackageObj.priceQuad);
+    }
+  }
+
+  const discountVal = Number(discountAmount) || 0;
+  const addOnVal = Number(addOnAmount) || 0;
+  const calculatedTotalBill = Math.max(0, selectedBasePrice - discountVal + addOnVal);
 
   // Bank Accounts Options
   const bankAccounts = coaList.filter(a => a.category === 'ASSET' && ['1101', '1102', '1103', '1104'].includes(a.code));
@@ -191,6 +224,7 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
           jamaahId: finalJamaahId,
           packageId: selectedPackageId,
           kloterId: selectedKloterId,
+          mitraId: selectedMitraId || undefined,
           roomType,
           discount: Number(discountAmount),
           addOnPrice: Number(addOnAmount),
@@ -208,6 +242,7 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
       setNewFullName('');
       setNewNik('');
       setNewPhone('');
+      setSelectedMitraId('');
     } catch (err: any) {
       setRegError(err.message || 'Terjadi kesalahan.');
     } finally {
@@ -477,17 +512,42 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Quick Payment Button */}
-                  <button
-                    onClick={() => {
-                      setPaymentRegId(selectedReg.id);
-                      setIsNewPaymentOpen(true);
-                    }}
-                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-sm shadow-sm transition-all flex items-center justify-center space-x-2"
-                  >
-                    <Receipt className="w-4 h-4" />
-                    <span>+ Catat Pembayaran Baru</span>
-                  </button>
+                  {/* Notes & Histori Mutasi */}
+                  {selectedReg.notes && (
+                    <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center space-x-1">
+                        <History className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Histori Mutasi & Catatan</span>
+                      </h4>
+                      <div className="p-2.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-sm text-[11px] text-slate-700 dark:text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">
+                        {selectedReg.notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Action Buttons */}
+                  <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        setPaymentRegId(selectedReg.id);
+                        setIsNewPaymentOpen(true);
+                      }}
+                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-sm shadow-sm transition-all flex items-center justify-center space-x-2"
+                    >
+                      <Receipt className="w-4 h-4" />
+                      <span>+ Catat Pembayaran Baru</span>
+                    </button>
+
+                    {!perm.isReadOnly && (
+                      <button
+                        onClick={() => setIsMutationOpen(true)}
+                        className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-sm shadow-sm transition-all flex items-center justify-center space-x-2"
+                      >
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <span>Pindah Paket / Kloter (Mutasi)</span>
+                      </button>
+                    )}
+                  </div>
 
                 </div>
               );
@@ -756,11 +816,11 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
                   <select
                     value={selectedPackageId}
                     onChange={(e) => setSelectedPackageId(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none font-medium"
                     required
                   >
-                    <option value="">-- Pilih Paket --</option>
-                    {packageList.map((p) => (
+                    <option value="">-- Pilih Paket (Aktif) --</option>
+                    {activePackageList.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({formatIDR(p.priceQuad)})
                       </option>
@@ -773,7 +833,7 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
                   <select
                     value={selectedKloterId}
                     onChange={(e) => setSelectedKloterId(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none font-medium"
                     required
                   >
                     <option value="">-- Pilih Kloter --</option>
@@ -786,48 +846,119 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
                 </div>
               </div>
 
+              {/* Mitra / Referral (Opsional) */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Mitra / Referral / Agen (Opsional)
+                </label>
+                <select
+                  value={selectedMitraId}
+                  onChange={(e) => setSelectedMitraId(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none font-medium text-slate-800 dark:text-slate-200"
+                >
+                  <option value="">-- Pendaftaran Langsung (Tanpa Mitra) --</option>
+                  {mitraList.filter(m => m.isActive).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      [{m.code}] {m.name} — Fee: {formatIDR(m.defaultFeePerPax)}/pax
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  Jika mitra dipilih, komisi referral akan otomatis tercatat di modul "Manajemen Mitra & Komisi".
+                </span>
+              </div>
+
               {/* Room Type */}
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Tipe Kamar Hotel</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['QUAD', 'TRIPLE', 'DOUBLE'] as const).map((room) => (
-                    <button
-                      key={room}
-                      type="button"
-                      onClick={() => setRoomType(room)}
-                      className={`py-2 rounded-sm border text-center font-bold ${
-                        roomType === room
-                          ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                          : 'border-slate-300 dark:border-slate-700'
-                      }`}
-                    >
-                      {room}
-                    </button>
-                  ))}
+                  {(['QUAD', 'TRIPLE', 'DOUBLE'] as const).map((room) => {
+                    let priceForRoom = 0;
+                    if (selectedPackageObj) {
+                      if (room === 'QUAD') priceForRoom = selectedPackageObj.priceQuad;
+                      if (room === 'TRIPLE') priceForRoom = selectedPackageObj.priceTriple;
+                      if (room === 'DOUBLE') priceForRoom = selectedPackageObj.priceDouble;
+                    }
+                    return (
+                      <button
+                        key={room}
+                        type="button"
+                        onClick={() => setRoomType(room)}
+                        className={`py-2 px-1 rounded-sm border text-center transition-all ${
+                          roomType === room
+                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500 font-bold'
+                            : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium'
+                        }`}
+                      >
+                        <div className="text-xs">{room}</div>
+                        {selectedPackageObj ? (
+                          <div className="text-[10px] font-mono mt-0.5 opacity-90">
+                            {formatIDR(priceForRoom)}
+                          </div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Discount & Addon */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Diskon (IDR)</label>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Diskon / Penyesuaian Harga (IDR)
+                  </label>
                   <input
                     type="number"
+                    placeholder="Contoh: 1000000"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none font-mono"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none font-mono font-bold text-emerald-600 dark:text-emerald-400"
                   />
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">Add-On (IDR)</label>
                   <input
                     type="number"
+                    placeholder="Contoh: 500000"
                     value={addOnAmount}
                     onChange={(e) => setAddOnAmount(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none font-mono"
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-sm outline-none font-mono font-bold text-blue-600 dark:text-blue-400"
                   />
                 </div>
               </div>
+
+              {/* Dynamic Calculation Summary Card */}
+              {selectedPackageObj && (
+                <div className="p-3 bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-sm space-y-1 text-xs">
+                  <div className="flex items-center justify-between font-medium text-slate-700 dark:text-slate-300">
+                    <span>Harga Dasar Paket ({selectedPackageObj.name} - {roomType}):</span>
+                    <span className="font-mono font-bold">{formatIDR(selectedBasePrice)}</span>
+                  </div>
+                  {roomUpgradeFee > 0 && (
+                    <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 text-[11px]">
+                      <span>• Biaya Upgrade Kamar ({roomType}):</span>
+                      <span className="font-mono">+ {formatIDR(roomUpgradeFee)}</span>
+                    </div>
+                  )}
+                  {discountVal > 0 && (
+                    <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400 text-[11px]">
+                      <span>• Diskon / Penyesuaian Harga:</span>
+                      <span className="font-mono">- {formatIDR(discountVal)}</span>
+                    </div>
+                  )}
+                  {addOnVal > 0 && (
+                    <div className="flex items-center justify-between text-blue-700 dark:text-blue-400 text-[11px]">
+                      <span>• Add-On (Perlengkapan/Handling):</span>
+                      <span className="font-mono">+ {formatIDR(addOnVal)}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-blue-200 dark:border-blue-800 flex items-center justify-between font-bold text-slate-900 dark:text-slate-100 text-sm">
+                    <span>Total Tagihan Akhir Jamaah:</span>
+                    <span className="font-mono text-blue-600 dark:text-blue-400">{formatIDR(calculatedTotalBill)}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end space-x-2">
                 <button
@@ -861,6 +992,22 @@ export const JamaahBillingView: React.FC<JamaahBillingViewProps> = ({
           kloter={kloterList.find(k => k.id === registrations.find(r => r.id === printedPayment.registrationId)?.kloterId)}
           bankCoa={bankAccounts.find(b => b.id === printedPayment.bankAccountId)}
           onClose={() => setPrintedPayment(null)}
+        />
+      )}
+
+      {/* Mutasi Paket & Kloter Modal */}
+      {isMutationOpen && selectedReg && (
+        <MutasiJamaahModal
+          isOpen={isMutationOpen}
+          onClose={() => setIsMutationOpen(false)}
+          registration={selectedReg}
+          jamaah={jamaahList.find(j => j.id === selectedReg.jamaahId)}
+          packages={packageList}
+          kloters={kloterList}
+          onSuccess={() => {
+            onRefreshData();
+            setIsMutationOpen(false);
+          }}
         />
       )}
 
